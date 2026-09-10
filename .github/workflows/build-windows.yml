@@ -1,0 +1,49 @@
+name: Build OpenHantek for Windows
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Get source
+        uses: actions/checkout@v4
+
+      - name: Install Qt 5.15.2 (MSVC 64-bit)
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '5.15.2'
+          arch: 'win64_msvc2019_64'
+
+      - name: Locate Qt and make sure qtenv2.bat exists
+        shell: pwsh
+        run: |
+          $qt = if ($env:QT_ROOT_DIR) { $env:QT_ROOT_DIR } else { $env:Qt5_DIR }
+          "QTROOT=$qt" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $bat = Join-Path $qt 'bin\qtenv2.bat'
+          if (-not (Test-Path $bat)) { Set-Content -Path $bat -Value '@echo off' }
+
+      - name: Configure
+        shell: pwsh
+        run: cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QTROOT"
+
+      - name: Build
+        shell: pwsh
+        run: cmake --build build --config Release
+
+      - name: Bundle Qt and VC++ runtime DLLs next to the exe
+        shell: pwsh
+        run: |
+          $out = 'build\openhantek\Release'
+          & "$env:QTROOT\bin\windeployqt.exe" --release --no-translations --no-compiler-runtime "$out\OpenHantek.exe"
+          Copy-Item "$env:WINDIR\System32\msvcp140.dll", "$env:WINDIR\System32\vcruntime140.dll", "$env:WINDIR\System32\vcruntime140_1.dll" $out
+          Remove-Item "$out\*.pdb" -ErrorAction SilentlyContinue
+          Get-ChildItem $out
+
+      - name: Upload build
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenHantek-win64
+          path: build/openhantek/Release
