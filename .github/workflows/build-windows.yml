@@ -27,7 +27,7 @@ jobs:
 
       - name: Configure
         shell: pwsh
-        run: cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QTROOT"
+        run: $env:CXXFLAGS = '/FIstdexcept'; cmake -S . -B build -A x64 -DCMAKE_PREFIX_PATH="$env:QTROOT"
 
       - name: Build
         shell: pwsh
